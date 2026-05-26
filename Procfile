@@ -1,0 +1,1 @@
+web: daphne -b 0.0.0.0 -p $PORT private_chat.asgi:application
