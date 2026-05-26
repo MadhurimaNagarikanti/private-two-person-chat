@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Private Two-Person Chat</title>
+
+<!-- Emoji Picker -->
+<script type="module"
+  src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js">
+</script>
+
+<style>
+:root {
+    --bg: #f5f5f5;
+    --card: #ffffff;
+    --text: #1f2937;
+    --sent: linear-gradient(135deg, #ff9a9e, #fad0c4);
+    --received: #e5e7eb;
+}
+
+body.dark {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --text: #f8fafc;
+    --sent: linear-gradient(135deg, #6366f1, #8b5cf6);
+    --received: #334155;
+}
+
+body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Arial, sans-serif;
+    transition: 0.3s;
+}
+
+.chat-container {
+    max-width: 420px;
+    margin: auto;
+    background: var(--card);
+    padding: 15px;
+    border-radius: 12px;
+    position: relative;
+}
+
+.chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.chat-box {
+    list-style: none;
+    padding: 0;
+    margin: 15px 0;
+    max-height: 350px;
+    overflow-y: auto;
+}
+
+.message {
+    padding: 8px 12px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    max-width: 75%;
+    word-wrap: break-word;
+}
+
+.sent {
+    background: var(--sent);
+    margin-left: auto;
+    text-align: right;
+}
+
+.received {
+    background: var(--received);
+    margin-right: auto;
+}
+
+.input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#emojiBtn {
+    background: none;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+}
+
+#msg {
+    flex: 1;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+}
+
+#sendBtn {
+    padding: 8px 12px;
+    border: none;
+    background: #4f46e5;
+    color: white;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+emoji-picker {
+    position: absolute;
+    bottom: 70px;
+    left: 10px;
+    display: none;
+    z-index: 1000;
+}
+</style>
+</head>
+
+<body>
+
+<div class="chat-container">
+
+    <div class="chat-header">
+        <strong>Logged in as: {{ username }}</strong>
+        <button onclick="toggleTheme()">🌙</button>
+    </div>
+
+    <ul id="chat" class="chat-box">
+    {% for msg in messages %}
+        <li class="message {% if msg.sender.username == username %}sent{% else %}received{% endif %}">
+            <small>{{ msg.sender.username }}</small><br>
+            {{ msg.text }}
+
+            <div style="font-size:10px; opacity:0.7;">
+                {{ msg.timestamp|date:"H:i" }}
+                {% if msg.sender.username == username %}
+                    {% if msg.seen %}✔✔{% else %}✔{% endif %}
+                {% endif %}
+            </div>
+        </li>
+    {% endfor %}
+</ul>
+
+
+
+    <div class="input-row">
+        <button id="emojiBtn" type="button">😊</button>
+        <input id="msg" placeholder="Type a message">
+        <button id="sendBtn" onclick="send()">Send</button>
+    </div>
+
+    <emoji-picker id="emojiPicker"></emoji-picker>
+
+</div>
+
+<script>
+/* WebSocket */
+const socket = new WebSocket("ws://127.0.0.1:8000/ws/chat/");
+/* Browser Notification Permission */
+
+if (Notification.permission !== "granted") {
+    Notification.requestPermission();
+}
+const me = "{{ username }}";
+
+socket.onmessage = function(e) {
+    const data = JSON.parse(e.data);
+    /* Notification for other user's message */
+
+if (data.sender !== me) {
+
+    new Notification("New Message 💬", {
+        body: data.sender + ": " + data.message,
+        icon: "https://cdn-icons-png.flaticon.com/512/733/733585.png"
+    });
+
+}
+
+
+    // typing indicator handled elsewhere
+    if (data.type === "typing") return;
+
+    const li = document.createElement("li");
+    li.className = "message " + (data.sender === me ? "sent" : "received");
+
+    const time = new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+
+    li.innerHTML = `
+        <small>${data.sender}</small><br>
+        ${data.message}
+        <div style="font-size:10px; opacity:0.7;">
+            ${time}
+        </div>
+    `;
+
+    const chat = document.getElementById("chat");
+    chat.appendChild(li);
+    chat.scrollTop = chat.scrollHeight;
+};
+
+
+
+function send() {
+    const input = document.getElementById("msg");
+    if (!input.value.trim()) return;
+
+    socket.send(JSON.stringify({ message: input.value }));
+    input.value = "";
+}
+
+/* Dark / Light Theme */
+function toggleTheme() {
+    document.body.classList.toggle("dark");
+    localStorage.setItem(
+        "theme",
+        document.body.classList.contains("dark") ? "dark" : "light"
+    );
+}
+
+window.onload = () => {
+    if (localStorage.getItem("theme") === "dark") {
+        document.body.classList.add("dark");
+    }
+};
+
+/* Emoji Picker */
+const emojiBtn = document.getElementById("emojiBtn");
+const emojiPicker = document.getElementById("emojiPicker");
+const input = document.getElementById("msg");
+
+emojiBtn.addEventListener("click", () => {
+    emojiPicker.style.display =
+        emojiPicker.style.display === "none" ? "block" : "none";
+});
+
+emojiPicker.addEventListener("emoji-click", event => {
+    input.value += event.detail.unicode;
+    emojiPicker.style.display = "none";
+});
+</script>
+
+</body>
+</html>
