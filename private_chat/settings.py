@@ -25,13 +25,9 @@ SECRET_KEY = 'django-insecure-w7q)a)dh6exp%vt15j6q06g7hoikc)zkz4&knm(3i=6q_2tnip
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = [
-    "private-two-person-chat-production.up.railway.app",
-    "127.0.0.1",
-    "localhost",
-]
+ALLOWED_HOSTS = ["*"]
 CSRF_TRUSTED_ORIGINS = [
-    "https://private-two-person-chat-production.up.railway.app",
+    "https://*.up.railway.app",
 ]
 
 
@@ -92,7 +88,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'private_chat.wsgi.application'
+
 
 
 # Database
