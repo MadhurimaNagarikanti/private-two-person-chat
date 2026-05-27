@@ -158,7 +158,7 @@ Logout
 
 <div class="typing" id="typing"></div>
 
-<div class="input-row">
+<form class="input-row" onsubmit="event.preventDefault(); sendMessage();"></form>
 
 <input
 type="text"
@@ -182,9 +182,76 @@ window.location.protocol === "https:"
 ? "wss"
 : "ws";
 
-const socket = new WebSocket(
+let socket;
+
+function connectSocket(){
+
+socket = new WebSocket(
 protocol + "://" + window.location.host + "/ws/chat/"
 );
+
+socket.onclose = function(){
+console.log("Socket disconnected. Reconnecting...");
+setTimeout(connectSocket,1000);
+};
+
+socket.onopen = function(){
+console.log("WebSocket connected");
+};
+
+socket.onmessage = function(e){
+
+const data = JSON.parse(e.data);
+
+if(data.typing){
+
+typingDiv.innerHTML =
+data.sender + " is typing...";
+
+setTimeout(()=>{
+typingDiv.innerHTML = "";
+},1000);
+
+return;
+}
+
+const li = document.createElement("li");
+
+li.className =
+"message " +
+(data.sender === me ? "sent" : "received");
+
+li.innerHTML = `
+<b>${data.sender}</b><br>
+${data.message}
+<div class="time">
+${new Date().toLocaleTimeString([],{
+hour:'2-digit',
+minute:'2-digit'
+})}
+</div>
+`;
+
+chat.appendChild(li);
+
+chat.scrollTop = chat.scrollHeight;
+
+if(
+data.sender !== me &&
+Notification.permission === "granted"
+){
+
+new Notification("New Message",{
+body:data.sender + ": " + data.message
+});
+
+}
+
+};
+
+}
+
+connectSocket();
 
 const me = "{{ username }}";
 
