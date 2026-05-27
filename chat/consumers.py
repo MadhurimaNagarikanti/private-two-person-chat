@@ -1,20 +1,13 @@
-import json
-
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
+import json
 
-from django.conf import settings
+from .models import Message
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
-
-        self.user = self.scope["user"]
-
-        if not self.user.is_authenticated:
-            await self.close()
-            return
 
         self.room_group_name = "private_chat"
 
@@ -36,6 +29,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         data = json.loads(text_data)
 
+        user = self.scope["user"]
+
         # typing indicator
         if data.get("typing"):
 
@@ -43,7 +38,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 self.room_group_name,
                 {
                     "type": "typing_message",
-                    "sender": self.user.username
+                    "sender": user.username,
                 }
             )
 
@@ -51,63 +46,41 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         message = data["message"]
 
-        sender = self.user
+        # save message
+        await self.save_message(user.username, message)
 
-        receiver = await self.get_receiver(sender)
-
-        await self.save_message(
-            sender,
-            receiver,
-            message
-        )
-
+        # send realtime message
         await self.channel_layer.group_send(
             self.room_group_name,
             {
                 "type": "chat_message",
                 "message": message,
-                "sender": sender.username,
+                "sender": user.username,
             }
         )
 
     async def chat_message(self, event):
 
-        await self.send(
-            text_data=json.dumps({
-                "message": event["message"],
-                "sender": event["sender"],
-            })
-        )
+        await self.send(text_data=json.dumps({
+            "message": event["message"],
+            "sender": event["sender"],
+        }))
 
     async def typing_message(self, event):
 
-        await self.send(
-            text_data=json.dumps({
-                "typing": True,
-                "sender": event["sender"]
-            })
-        )
+        await self.send(text_data=json.dumps({
+            "typing": True,
+            "sender": event["sender"],
+        }))
 
     @database_sync_to_async
-    def get_receiver(self, sender):
+    def save_message(self, username, message):
 
         from django.contrib.auth.models import User
 
-        users = list(
-            User.objects.filter(
-                username__in=settings.ALLOWED_USERS
-            )
-        )
-
-        return users[0] if users[1] == sender else users[1]
-
-    @database_sync_to_async
-    def save_message(self, sender, receiver, message):
-
-        from .models import Message
+        user = User.objects.get(username=username)
 
         Message.objects.create(
-            sender=sender,
-            receiver=receiver,
+            sender=user,
             content=message
         )
