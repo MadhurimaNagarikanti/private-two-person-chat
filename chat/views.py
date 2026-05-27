@@ -8,7 +8,7 @@ from .models import Message
 @login_required
 def chat_view(request):
 
-    messages = Message.objects.order_by("timestamp")
+    messages = Message.objects.all().order_by("timestamp")
 
     return render(request, "chat/chat.html", {
         "messages": messages,
